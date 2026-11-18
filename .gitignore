@@ -1,0 +1,17 @@
+# Local experiments, design notes, and personal memory
+/runs/
+/docs/
+/memory/
+/memories/
+
+# Python and local environment
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+.env.*
+.pytest_cache/
+
+# OS metadata
+.DS_Store

@@ -1,0 +1,4 @@
+interface:
+  display_name: "스킬 구조 분석과 A/B 비교"
+  short_description: "스킬의 파일·작동 흐름·도구를 파악하고 실제 A/B 로그와 연결"
+  default_prompt: "$skill-ab-test로 이 미설치 GitHub 스킬의 전체 폴더·파일 역할·작동 흐름·도구를 분석하고 실제 A/B 로그와 연결한 HTML을 만들어줘."

@@ -1,0 +1,39 @@
+# Skill A/B Test
+
+미설치 GitHub 스킬의 구조와 작동 방식을 분석하고, **스킬 적용 전후의 실제 실행 로그·응답을 비교하는 Codex 스킬**입니다. 결과는 클릭 가능한 HTML 대시보드로 제공합니다.
+
+## 하는 일
+
+- 폴더·파일 역할, 실행 순서, 도구와 의존성을 분석합니다.
+- 같은 과제를 별도 Codex 프로세스에서 실행합니다. A는 대상 스킬 없이, B는 임시로 적용합니다.
+- 메인 에이전트가 양쪽 근거를 연결해 **개선·악화·차이 없음·판단 불가**로 정리합니다.
+- 원본 로그와 실제 로그 화면 캡처를 보고서에 연결합니다. 캡처 출처와 관찰 한계도 표시합니다.
+
+## 설치·사용
+
+Codex에 다음과 같이 요청합니다.
+
+```text
+$skill-installer로 https://github.com/wjdwhddls/skill-ab-test/tree/main/skill-ab-test 의 스킬을 설치해줘.
+```
+
+설치 후 비교할 스킬의 GitHub 링크를 전달합니다.
+
+```text
+$skill-ab-test로 [GitHub 스킬 링크]의 구조와 작동 흐름을 분석하고, 적용 전후를 비교한 HTML을 만들어줘.
+```
+
+## 실행 조건
+
+- Python 3.11 이상, 인증된 Codex CLI와 실행할 모델의 사용 권한이 필요합니다.
+- 이미지 검증에는 Pillow(`python3 -m pip install Pillow`), 화면 촬영에는 브라우저·화면 캡처 도구가 필요합니다.
+- macOS / Codex CLI 0.153.4 기준으로 확인했습니다. 다른 운영체제·CLI 버전은 추가 검증이 필요합니다.
+- 현재 비교 범위는 텍스트 응답과 읽기 작업입니다. 이미 설치된 대상 스킬은 비교하지 않으며, 단일 실험으로 일반적인 성능 우위를 단정하지 않습니다.
+
+실행 지침은 [SKILL.md](skill-ab-test/SKILL.md), 상세 규약은 [references](skill-ab-test/references)에 있습니다. 실행 기록과 개인 데이터는 배포에서 제외합니다.
+
+## 테스트
+
+```bash
+python3 -m unittest discover -s tests
+```
