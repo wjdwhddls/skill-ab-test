@@ -27,6 +27,15 @@
       }
     });
   };
+  const selectComparison = id => {
+    if (!all('.comparison-detail').some(detail => detail.id === id)) return;
+    all('.comparison-detail').forEach(detail => { detail.hidden = detail.id !== id; });
+    all('[data-comparison-target]').forEach(control => {
+      const selected = (control.dataset.comparisonTargets || control.dataset.comparisonTarget).split(' ').includes(id);
+      if (control.tagName === 'BUTTON') control.setAttribute('aria-pressed', String(selected));
+      control.classList.toggle('is-selected', selected);
+    });
+  };
   const selectVerdict = id => {
     if (!all('.verdict-detail').some(detail => detail.id === id)) return;
     all('.verdict-detail').forEach(detail => { detail.hidden = detail.id !== id; });
@@ -53,6 +62,8 @@
     if (!target) return;
     const panel = target.closest('.dashboard-panel');
     if (panel) selectPanel(panel.id.slice('panel-'.length));
+    const comparison = target.closest('.comparison-detail');
+    if (comparison) selectComparison(comparison.id);
     const action = target.closest('.action-detail');
     if (action) selectAction(action.closest('.agent-panel'), action.dataset.eventId);
     const verdict = target.closest('.verdict-detail');
@@ -75,6 +86,19 @@
     if (!(event.target instanceof Element)) return;
     const tab = event.target.closest('.dashboard-tabs [data-panel]');
     if (tab) { selectPanel(tab.dataset.panel); return; }
+    const comparison = event.target.closest('[data-comparison-target]');
+    if (comparison) {
+      event.preventDefault();
+      selectPanel('comparison');
+      selectComparison(comparison.dataset.comparisonTarget);
+      const detail = byId(comparison.dataset.comparisonTarget);
+      if (comparison.tagName === 'A' && detail) {
+        detail.scrollIntoView({block: 'start', behavior: 'auto'});
+        detail.focus({preventScroll: true});
+      }
+      try { history.replaceState(null, '', `#${comparison.dataset.comparisonTarget}`); } catch { /* Preview history may be unavailable. */ }
+      return;
+    }
     const action = event.target.closest('.action-button');
     if (action) { selectAction(action.closest('.agent-panel'), action.dataset.eventTarget); return; }
     const verdict = event.target.closest('.verdict-button');
@@ -109,7 +133,7 @@
   let printDetails = [];
   let printAnswers = [];
   addEventListener('beforeprint', () => {
-    printState = all('.dashboard-panel, .action-detail, .verdict-detail, .file-detail, .flow-detail').map(element => [element, element.hidden]);
+    printState = all('.dashboard-panel, .comparison-detail, .action-detail, .verdict-detail, .file-detail, .flow-detail').map(element => [element, element.hidden]);
     printDetails = all('details').map(element => [element, element.open]);
     printAnswers = all('.answer-case').map(element => [element, element.hidden]);
     printState.forEach(([element]) => { element.hidden = false; });
@@ -122,5 +146,7 @@
     printAnswers.forEach(([element, hidden]) => { element.hidden = hidden; });
   });
   addEventListener('hashchange', revealHash);
+  const initialComparison = all('.comparison-detail').find(detail => !detail.hidden);
+  if (initialComparison) selectComparison(initialComparison.id);
   revealHash();
 })();

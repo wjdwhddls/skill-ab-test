@@ -20,6 +20,7 @@ from report_lib import (ValidationError, digest, local_path, need, obj, read_jso
                         read_text, safe_url, string, timestamp)
 from skill_analysis import load_analysis
 from analysis_views import files_panel, flow_panel, tools_panel
+from comparison_views import comparison_panel
 
 ARMS = ('baseline', 'treatment')
 LETTERS = {'baseline': 'A', 'treatment': 'B'}
@@ -669,14 +670,9 @@ def _report_scope(run):
     return content + '</section></div></section>'
 
 
-def _captures(root):
-    try:
+def _captures(root, captures=None):
+    if captures is None:
         from native_captures import load_native_captures
-    except ModuleNotFoundError as exc:
-        if exc.name != 'native_captures':
-            raise
-        captures = []
-    else:
         captures = load_native_captures(root)
     if not captures:
         return '<section id="log-captures"><h2>원본 로그 화면</h2><p class="missing">원본 로그 화면 미촬영. 비교 HTML의 스크린샷으로 대체하지 않았습니다.</p></section>'
@@ -794,30 +790,23 @@ def _verdicts(run):
 
 
 def build_html(run):
+    from native_captures import load_native_captures
+    captures = load_native_captures(run['root'])
     plan, review = run['plan'], run['review']
     analysis = run.get('analysis')
-    title = f'{plan["source"]["name"]} · 스킬 해부' if analysis else plan['title']
-    what = analysis['summary']['mechanism'] if analysis else review['what']
+    title = f'{plan["source"]["name"]} · 실행 비교'
+    what = analysis['summary']['purpose'] if analysis else review['what']
     body = [f'<header class="appbar"><div><h1>{_e(title)}</h1><p class="what">{_e(what)}</p></div><a class="source-link" href="{_e(plan["source"]["url"])}" rel="noreferrer noopener">스킬 출처 ↗</a></header>']
-    header_end = len(body)
-    body.append(f'<section class="summary-strip" aria-label="메인 요약과 관측 수치"><div class="summary-copy"><p class="takeaway">{_e(review["takeaway"])}</p><div class="verdict-counts">')
-    for verdict, label in VERDICTS.items():
-        count = sum(difference['verdict'] == verdict for difference in review['differences'])
-        body.append(f'<span class="verdict {verdict}" data-verdict-count="{verdict}">{label} {count}</span>')
-    body.append('</div></div><div class="summary-metrics">')
+    body.append(f'<section class="summary-strip" aria-label="이번 실행에서 확인한 차이"><div class="summary-copy"><p class="takeaway">{_e(review["takeaway"])}</p></div><div class="summary-metrics">')
     for name in ARMS:
         metrics = run['arms'][name]['metrics']
         body.append(f'<div class="metric-chip"><strong>{LETTERS[name]}</strong><span>완료 도구 {metrics["completed_tools"]}회</span><span>{metrics["elapsed_seconds"]:.1f}초</span></div>')
     body.append('</div></section>')
-    comparison_summary = ''.join(body[header_end:])
-    if analysis:
-        body = body[:header_end]
-        body.append(f'<section class="summary-strip"><div class="summary-copy"><p class="takeaway">{_e(analysis["summary"]["purpose"])}</p><p class="section-note">전체 구조를 살펴본 뒤 실제 A/B 실행으로 확인하세요.</p></div><div class="summary-metrics"><p><strong>{len(analysis["files"])}개 파일</strong> · 고정한 원본 전체 목록</p><p>구조 · 분기별 절차 · 도구 · 실행 근거</p></div></section>')
     body.append('<nav class="dashboard-tabs" role="tablist" aria-label="비교 보고서 탐색">')
-    panels = [('behavior', '행동 비교', _behavior(run)), ('answers', '최종 응답', _answers(run)), ('verdicts', '최종 정리', _verdicts(run)), ('context', '조건·한계', _context(run)), ('captures', '원본 로그 화면', _captures(run['root']))]
+    panels = [('comparison', '흐름과 차이', comparison_panel(run, captures)), ('behavior', '전체 로그', _behavior(run)), ('answers', '최종 응답', _answers(run)), ('verdicts', '최종 정리', _verdicts(run))]
     if analysis:
-        panels[0] = ('behavior', 'A/B 행동', comparison_summary + _behavior(run))
-        panels = [('files', '구조·파일', files_panel(run, analysis)), ('flow', '작동 흐름', flow_panel(run, analysis)), ('tools', '도구·의존성', tools_panel(run, analysis))] + panels
+        panels += [('files', '스킬 구조', files_panel(run, analysis)), ('flow', '선언된 절차', flow_panel(run, analysis)), ('tools', '도구·의존성', tools_panel(run, analysis))]
+    panels += [('context', '조건·한계', _context(run)), ('captures', '참고 화면', _captures(run['root'], captures))]
     initial = panels[0][0]
     for name, label, _ in panels:
         selected = name == initial
@@ -832,13 +821,18 @@ def build_html(run):
     return re.sub(r'\{\{(TITLE|SCRIPT_CSP|BODY|SCRIPT)\}\}', lambda match: replacements[match[1]], template)
 
 
-def render_trace_report(root, output=None):
+def render_trace_report(root, output=None, *, check=False):
     run = load_trace_run(root)
     target = Path(output) if output else run['root'] / 'trace-report.html'
     target = target.resolve()
     need(target.is_relative_to(run['root']) and target.suffix == '.html', 'HTML output must stay inside the run folder')
     need(target not in {path for arm in run['arms'].values() for path in arm['files'].values()}, 'output cannot overwrite trace evidence')
     html = build_html(run)
+    if check:
+        need(target.is_file(), 'report does not exist; generate it with this renderer first')
+        need(target.read_bytes() == html.encode('utf-8'),
+             'report does not match the bundled renderer and current evidence; regenerate it instead of editing HTML')
+        return target
     target.parent.mkdir(parents=True, exist_ok=True)
     fd, temporary = tempfile.mkstemp(prefix='.trace-report-', suffix='.html', dir=target.parent)
     try:
@@ -855,9 +849,11 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('run_dir', type=Path)
     parser.add_argument('--output', type=Path)
+    parser.add_argument('--check', action='store_true', help='Verify existing HTML matches this renderer and current evidence without writing files')
     args = parser.parse_args(argv)
     try:
-        print(render_trace_report(args.run_dir, args.output))
+        target = render_trace_report(args.run_dir, args.output, check=args.check)
+        print(f'Report matches bundled renderer: {target}' if args.check else target)
     except (ValidationError, OSError) as exc:
         print(f'trace report validation failed: {exc}', file=sys.stderr)
         return 1

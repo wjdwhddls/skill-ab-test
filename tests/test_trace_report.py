@@ -482,16 +482,16 @@ class TraceReportTests(unittest.TestCase):
         run = renderer.load_trace_run(self.root)
         document = Document(renderer.build_html(run))
         controls = [attrs for _, attrs in document.tags if attrs.get('role') == 'tab']
-        self.assertEqual([item['data-panel'] for item in controls], ['behavior', 'answers', 'verdicts', 'context', 'captures'])
-        self.assertEqual([item['data-panel'] for item in controls if item['aria-selected'] == 'true'], ['behavior'])
+        self.assertEqual([item['data-panel'] for item in controls], ['comparison', 'behavior', 'answers', 'verdicts', 'context', 'captures'])
+        self.assertEqual([item['data-panel'] for item in controls if item['aria-selected'] == 'true'], ['comparison'])
         panels = {attrs['id']: attrs for _, attrs in document.tags if attrs.get('role') == 'tabpanel'}
-        self.assertEqual([name for name, attrs in panels.items() if 'hidden' not in attrs], ['panel-behavior'])
+        self.assertEqual([name for name, attrs in panels.items() if 'hidden' not in attrs], ['panel-comparison'])
         for button in controls:
             self.assertEqual(panels[button['aria-controls']]['aria-labelledby'], button['id'])
         verdicts = [attrs for _, attrs in document.tags if attrs.get('class') == 'verdict-button']
         self.assertEqual(verdicts[0]['data-verdict-target'], 'difference-1')
         self.assertEqual(verdicts[0]['aria-pressed'], 'true')
-        self.assertIn('차이 없음 1', ''.join(document.text))
+        self.assertIn('차이 없음', ''.join(document.text))
 
     def test_action_panel_with_zero_tools_selects_actual_message(self):
         arm = copy.deepcopy(renderer.load_trace_run(self.root)['arms']['baseline'])
